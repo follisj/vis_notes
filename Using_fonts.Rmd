@@ -1,0 +1,185 @@
+---
+output:
+  html_document:
+    code_folding: hide
+---
+
+
+# Using Fonts in R (from Grok3)
+
+This guide explains how to work with fonts in R, focusing on base R graphics, `ggplot2`, and external font integration. Fonts can enhance visualizations by improving readability and aesthetics.
+
+## 1. Fonts in Base R Graphics
+
+Base R plotting functions (e.g., 'plot()', 'text()') allow font customization via the 'family' argument or graphical parameters ('par()').
+
+### Basic Usage
+- The 'family' argument specifies the font family.
+- Common options: "serif", "sans", "mono".
+- Example:
+
+```{r}
+plot(1:10, main = "Example Plot", family = "sans")
+text(2, 8, "Hello, R!", family = "serif", cex = 1.5)
+text(5, 2, "Hello, R!", family = "Helvetica", cex = 1.5)
+text(8, 5, "Hello, R!", family = "ArialMT", cex = 1.5)
+```
+
+### Setting Fonts Globally
+Use `par()` to set the default font for a plotting session:
+```{r}
+par(family = "mono")
+plot(1:10, main = "Mono Font Plot")
+```
+
+### Available Fonts
+To see available font families in base R:
+```{r}
+names(postscriptFonts())
+```
+This lists PostScript font mappings, though availability depends on your system.
+
+## 2. Fonts in ggplot2
+
+<h3>
+The `ggplot2` package offers more flexibility for font customization through themes and the `extrafont` or `showtext` packages.
+</h3>
+
+### Basic Font Changes
+#### Use `theme()` to adjust fonts for titles, labels, etc.:
+```{r}
+library(ggplot2)
+
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  labs(title = "Car Weight vs MPG") +
+  theme(plot.title = element_text(family = "sans", size = 16))
+```
+
+### Using System Fonts with `extrafont`
+1. Install and load `extrafont`:
+```{r}
+   #install.packages("extrafont")
+   library(extrafont)
+```
+2. Import system fonts (run once):
+```{r}
+   font_import()
+```
+3. List available fonts:
+```{r}
+   fonts()
+```
+4. Use a specific font in `ggplot2`:
+```{r}
+   ggplot(mtcars, aes(x = wt, y = mpg)) +
+     geom_point() +
+     labs(title = "Custom Font") +
+     theme(plot.title = element_text(family = "Comic Sans MS",size=24))
+```
+
+### Using `showtext` for More Flexibility
+The `showtext` package simplifies font usage, especially for online fonts (e.g., Google Fonts):
+1. Install and load:
+```{r}
+   #install.packages("showtext")
+   library(showtext)
+```
+2. Enable `showtext`:
+```{r}
+   showtext_auto()
+```
+3. Load a Google Font:
+```{r}
+   sysfonts::font_add_google("Roboto", "roboto")
+```
+4. Use it in a plot:
+```{r}
+   ggplot(mtcars, aes(x = wt, y = mpg)) +
+     geom_point() +
+     labs(title = "Roboto Font") +
+     theme(plot.title = element_text(family = "roboto",size=24))
+```
+
+## 3. Platform-Specific Notes
+
+- **Windows**: Fonts installed on your system are typically available.
+- **MacOS**: Use `quartzFonts()` to map fonts in base R or rely on `extrafont`/`showtext`.
+- **Linux**: Ensure fonts are installed via your package manager (e.g., `ttf` packages), then import them.
+
+## 4. Tips
+- Check font availability before plotting to avoid errors.
+- Use `extrafont::fonttable()` or `sysfonts::font_files()` to debug font issues.
+- For publication-quality plots, embed fonts when saving (e.g., with `extrafont::embed_fonts()` for PDFs).
+
+## Example: Combining Everything
+```{r}
+library(ggplot2)
+library(showtext)
+showtext_auto()
+sysfonts::font_add_google("Lato", "lato")
+
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  labs(title = "Lato Font Example", x = "Weight", y = "Miles per Gallon") +
+  theme(text = element_text(family = "lato",size=24))
+```
+
+```{r}
+library(ggplot2)
+library(showtext)
+showtext_auto()
+sysfonts::font_add_google("Lato", "lato")
+sysfonts::font_add_google("Sigmar One","sigmar")
+
+ggplot(mtcars, aes(x = wt, y = mpg)) +
+  geom_point() +
+  labs(title = "Lato Font Example", x = "Weight", y = "Miles per Gallon") +
+  theme(plot.title = element_text(family = "lato",size=24),
+        axis.title.x = element_text(family="sigmar",size=16)
+        )
+```
+
+## Adding Fonts
+There are websites with many fonts, such as [google fonts](https://fonts.google.com/)
+
+Get a list of installed Google Fonts
+```{r}
+font_families_google()
+```
+
+See if the font of interest is included:
+```{r}
+font_families_google()[grep("Roboto",font_families_google())]
+```
+If it is not installed
+```{r}
+font_families_google()[grep("Playwrite",font_families_google())]
+```
+Then it will need to be installed
+```{r}
+font_add("playwrite",regular="Playwrite_IT_Moderna/PlaywriteITModerna-VariableFont_wght.ttf")
+```
+
+And:
+```{r}
+font_add_google("Roboto Condensed","Roboto")
+font_add_google("Noto Sans","Noto")
+font_add_google("Life Savers","LS")
+mtcars |>
+  ggplot(aes(x=cyl,y=mpg))+
+  geom_col()+
+  geom_text(aes(x=6,y=200,label="label goes here"),family="Roboto")+
+  labs(title="title goes here",
+       x="cylinders",
+       y="miles per gallon")+
+  theme_bw()+
+  theme(plot.title=element_text(family="LS",hjust=.5,size=24),
+        axis.title.x=element_text(face="bold",family="playwrite",size=16),
+        axis.title.y=element_text(family="Noto",size=14))
+```
+
+This Markdown file provides a starting point for font usage in R. Experiment with different families and packages to suit your needs!
+
+---
+
