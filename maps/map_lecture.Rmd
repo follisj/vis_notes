@@ -1,0 +1,474 @@
+# Maps in Data Visualization: A Comprehensive Lecture
+
+## Introduction
+
+Maps are powerful tools for visualizing spatial data. They allow us to understand geographic patterns, spatial relationships, and regional variations in our data. However, creating effective map visualizations requires careful consideration of various factors including projection, color schemes, data classification, and more.
+
+## 1. Why Use Maps for Data Visualization?
+
+Maps are particularly useful when:
+- The geographic context is central to understanding the data
+- Spatial patterns or clusters are important to identify
+- Regional comparisons need to be made
+- Location-based decision making is required
+
+## 2. Types of Maps in Data Visualization
+
+### Choropleth Maps
+These maps use color or shading to represent different values across geographic areas.
+
+```{r}
+# Example of a basic choropleth map in R
+library(ggplot2)
+library(maps)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample data
+state_data <- data.frame(
+  state = tolower(state.name),
+  value = runif(50, 0, 100)
+)
+
+# Join the data
+map_data <- merge(states_map, state_data, by.x = "region", by.y = "state")
+map_data <- map_data[order(map_data$order), ]
+
+# Create the map
+ggplot(map_data, aes(x = long, y = lat, group = group, fill = value)) +
+  geom_polygon(color = "white", size = 0.2) +
+  coord_map() +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  labs(title = "Sample Choropleth Map of US States",
+       fill = "Value")
+```
+
+### Proportional Symbol Maps
+These use differently sized symbols (usually circles) to represent data values at specific locations.
+
+```{r}
+library(ggplot2)
+library(maps)
+
+# Get US cities data
+data(us.cities)
+
+# Subset to major cities
+major_cities <- us.cities[us.cities$pop > 500000, ]
+
+# Create the map
+ggplot() +
+  borders("state", fill = "lightgray", color = "white") +
+  geom_point(data = major_cities, 
+             aes(x = long, y = lat, size = pop/1000), 
+             color = "darkred", alpha = 0.7) +
+  coord_map() +
+  scale_size_continuous(name = "Population (thousands)") +
+  theme_minimal() +
+  labs(title = "Major US Cities by Population")
+```
+
+### Dot Density Maps
+These use dots to represent the presence or density of a phenomenon.
+
+### Flow Maps
+These show movement or connections between locations.
+
+### Heat Maps (Density Maps)
+These visualize the intensity or concentration of data points across a geographic area.
+
+```{r}
+library(ggplot2)
+library(maps)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample point data (e.g., incidents)
+set.seed(123)
+incidents <- data.frame(
+  long = runif(1000, min(states_map$long), max(states_map$long)),
+  lat = runif(1000, min(states_map$lat), max(states_map$lat))
+)
+
+# Create the map
+ggplot() +
+  geom_polygon(data = states_map, 
+               aes(x = long, y = lat, group = group),
+               fill = "white", color = "gray") +
+  geom_density_2d_filled(data = incidents, 
+                        aes(x = long, y = lat),
+                        alpha = 0.7) +
+  coord_map() +
+  theme_minimal() +
+  labs(title = "Heat Map of Incident Density")
+```
+
+## 3. Key Considerations for Effective Map Visualizations
+
+### Data Projection
+Map projections transform the Earth's 3D surface onto a 2D plane. Different projections preserve different properties:
+
+- Equal-area projections (maintain area relationships)
+- Conformal projections (maintain shape/angles)
+- Equidistant projections (maintain distances)
+- Compromise projections (balance multiple properties)
+
+```{r}
+# Example of different projections in R
+library(ggplot2)
+library(maps)
+
+world <- map_data("world")
+
+# Mercator projection (traditional but distorts areas)
+p1 <- ggplot(world, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = "lightgray", color = "white", size = 0.1) +
+  coord_map("mercator") +
+  theme_minimal() +
+  ggtitle("Mercator Projection")
+
+# Albers equal-area projection
+p2 <- ggplot(world, aes(x = long, y = lat, group = group)) +
+  geom_polygon(fill = "lightgray", color = "white", size = 0.1) +
+  coord_map("albers", lat0 = 0, lat1 = 0) +
+  theme_minimal() +
+  ggtitle("Albers Equal-Area Projection")
+p1
+p2
+```
+
+### Data Classification
+How you group or bin your data can significantly impact the story your map tells:
+
+- Equal intervals (equal range of values)
+- Quantiles (equal number of observations)
+- Natural breaks (finds natural groupings in the data)
+- Standard deviation (shows deviation from the mean)
+
+```{r}
+library(ggplot2)
+library(maps)
+library(classInt)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample data
+set.seed(42)
+state_data <- data.frame(
+  state = tolower(state.name),
+  value = runif(50, 0, 100)
+)
+
+# Join the data
+map_data <- merge(states_map, state_data, by.x = "region", by.y = "state")
+map_data <- map_data[order(map_data$order), ]
+
+# Create equal interval breaks
+equal_intervals <- classIntervals(state_data$value, n = 5, style = "equal")
+state_data$equal_int <- cut(state_data$value, breaks = equal_intervals$brks)
+
+# Create quantile breaks
+quantile_breaks <- classIntervals(state_data$value, n = 5, style = "quantile")
+state_data$quantiles <- cut(state_data$value, breaks = quantile_breaks$brks)
+
+# Create natural breaks
+jenks_breaks <- classIntervals(state_data$value, n = 5, style = "jenks")
+state_data$jenks <- cut(state_data$value, breaks = jenks_breaks$brks)
+```
+
+### Color Selection
+Color choice is crucial for effective map visualization:
+
+- Sequential color schemes for continuous data
+- Diverging color schemes for data with a meaningful midpoint
+- Qualitative color schemes for categorical data
+- Consideration for colorblindness and accessibility
+
+```{r}
+library(ggplot2)
+library(maps)
+library(RColorBrewer)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample data
+state_data <- data.frame(
+  state = tolower(state.name),
+  value = runif(50, -1, 1)  # Values range from -1 to 1
+)
+
+# Join the data
+map_data <- merge(states_map, state_data, by.x = "region", by.y = "state")
+map_data <- map_data[order(map_data$order), ]
+
+# Sequential color scheme (for positive values only)
+p1 <- ggplot(map_data, aes(x = long, y = lat, group = group, fill = abs(value))) +
+  geom_polygon(color = "white", size = 0.2) +
+  coord_map() +
+  scale_fill_distiller(palette = "Blues", direction = 1) +
+  theme_minimal() +
+  labs(title = "Sequential Color Scheme", fill = "Value")
+
+# Diverging color scheme (for values centered around 0)
+p2 <- ggplot(map_data, aes(x = long, y = lat, group = group, fill = value)) +
+  geom_polygon(color = "white", size = 0.2) +
+  coord_map() +
+  scale_fill_distiller(palette = "RdBu", direction = 1) +
+  theme_minimal() +
+  labs(title = "Diverging Color Scheme", fill = "Value")
+p1
+p2
+```
+
+### Scale and Resolution
+- Choose an appropriate scale for your visualization
+- Consider the resolution of your data and the map boundaries
+- Pay attention to small areas (they might disappear or be overemphasized)
+
+### Context and Orientation
+- Include necessary contextual elements (scale bar, north arrow, legend)
+- Ensure the orientation is clear and conventional
+- Include relevant geographic features for context
+
+```{r}
+library(ggplot2)
+library(maps)
+library(ggspatial)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample data
+state_data <- data.frame(
+  state = tolower(state.name),
+  value = runif(50, 0, 100)
+)
+
+# Join the data
+map_data <- merge(states_map, state_data, by.x = "region", by.y = "state")
+map_data <- map_data[order(map_data$order), ]
+
+# Create the map with context elements
+# ggplot(map_data, aes(x = long, y = lat, group = group, fill = value)) +
+#   geom_polygon(color = "white", size = 0.2) +
+#   coord_map() +
+#   scale_fill_viridis_c(name = "Value") +
+#   theme_minimal() +
+#   annotation_north_arrow(location = "bl", which_north = "true") +
+#   annotation_scale(location = "br") +
+#   labs(title = "US States with Scale and North Arrow")
+```
+
+## 4. Common Pitfalls to Avoid
+
+### 1. Ignoring Map Projections
+Using an inappropriate projection can severely distort your data. For example, the Mercator projection drastically exaggerates areas far from the equator.
+
+### 2. Poor Color Choices
+- Using rainbow color scales (difficult to interpret)
+- Ignoring colorblindness considerations
+- Using too many colors
+
+### 3. Missing Context
+- Maps without legends
+- Lack of labeled reference points
+- No indication of scale
+
+### 4. Choropleth Fallacies
+- Using raw counts instead of rates in choropleth maps
+- Not accounting for population density
+- Assuming uniform distribution within regions
+
+```{r}
+# Example of correcting for population in R
+library(ggplot2)
+library(maps)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample data
+state_data <- data.frame(
+  state = tolower(state.name),
+  incidents = rpois(50, lambda = 1000),  # Raw counts
+  population = state.x77[, "Population"] * 1000  # Population data
+)
+
+# Calculate rates
+state_data$rate <- (state_data$incidents / state_data$population) * 100000  # per 100,000 people
+
+# Join the data
+map_data_count <- merge(states_map, state_data[, c("state", "incidents")], 
+                  by.x = "region", by.y = "state")
+map_data_count <- map_data_count[order(map_data_count$order), ]
+
+map_data_rate <- merge(states_map, state_data[, c("state", "rate")], 
+                  by.x = "region", by.y = "state")
+map_data_rate <- map_data_rate[order(map_data_rate$order), ]
+
+# Plot raw counts (misleading)
+p1 <- ggplot(map_data_count, aes(x = long, y = lat, group = group, fill = incidents)) +
+  geom_polygon(color = "white", size = 0.2) +
+  coord_map() +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  labs(title = "Raw Incident Counts (Misleading)",
+       fill = "Incidents")
+
+# Plot rates (more accurate)
+p2 <- ggplot(map_data_rate, aes(x = long, y = lat, group = group, fill = rate)) +
+  geom_polygon(color = "white", size = 0.2) +
+  coord_map() +
+  scale_fill_viridis_c() +
+  theme_minimal() +
+  labs(title = "Incident Rates per 100,000 People (Better)",
+       fill = "Rate")
+```
+
+### 5. Overplotting or Oversimplification
+- Too much detail can overwhelm
+- Too little detail can mislead
+
+### 6. Ignoring the Modifiable Areal Unit Problem (MAUP)
+The pattern you see might change depending on how you aggregate spatial data.
+
+## 5. Advanced Techniques
+
+### Interactive Maps
+Using packages like `leaflet` or `plotly` to create interactive maps that allow users to explore the data.
+
+```{r}
+library(leaflet)
+
+# Create a leaflet map
+leaflet() %>%
+  addTiles() %>%  # Add default OpenStreetMap tiles
+  setView(lng = -98, lat = 39, zoom = 4) %>%  # Center on US
+  addCircleMarkers(
+    data = us.cities[us.cities$pop > 500000, ],
+    lng = ~long, 
+    lat = ~lat,
+    radius = ~pop/500000,
+    color = "red",
+    fillOpacity = 0.7,
+    popup = ~paste(name, "<br>Population:", pop)
+  )
+```
+
+### Small Multiples
+Using a grid of small maps to compare different variables or time periods.
+
+```{r}
+library(ggplot2)
+library(maps)
+library(dplyr)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample data for multiple years
+set.seed(123)
+years <- 2015:2020
+state_data <- expand.grid(
+  state = tolower(state.name),
+  year = years
+)
+state_data$value <- runif(nrow(state_data), 0, 100)
+
+# Create the small multiples map
+ggplot() +
+  geom_polygon(data = states_map, 
+               aes(x = long, y = lat, group = group),
+               fill = "lightgray", color = "white") +
+  geom_polygon(data = inner_join(states_map, state_data, by = c("region" = "state")),
+               aes(x = long, y = lat, group = group, fill = value)) +
+  coord_map() +
+  scale_fill_viridis_c() +
+  facet_wrap(~year) +
+  theme_minimal() +
+  theme(axis.text = element_blank(),
+        axis.ticks = element_blank()) +
+  labs(title = "Values by State (2015-2020)")
+```
+
+### Bivariate Maps
+Showing two variables simultaneously on a single map.
+
+```{r}
+library(ggplot2)
+library(maps)
+
+# Get US states map data
+states_map <- map_data("state")
+
+# Create sample data with two variables
+set.seed(42)
+state_data <- data.frame(
+  state = tolower(state.name),
+  var1 = runif(50, 0, 100),  # First variable
+  var2 = runif(50, 0, 100)   # Second variable
+)
+
+# Discretize the variables
+state_data$var1_cat <- cut(state_data$var1, breaks = c(0, 33, 66, 100), labels = c("Low", "Medium", "High"))
+state_data$var2_cat <- cut(state_data$var2, breaks = c(0, 33, 66, 100), labels = c("Low", "Medium", "High"))
+
+# Create a combined variable
+state_data$bivar <- interaction(state_data$var1_cat, state_data$var2_cat)
+
+# Create a color mapping
+bivar_colors <- c(
+  "Low.Low" = "#e8e8e8",
+  "Low.Medium" = "#ace4e4",
+  "Low.High" = "#5ac8c8",
+  "Medium.Low" = "#dfb0d6",
+  "Medium.Medium" = "#a5add3",
+  "Medium.High" = "#5698b9",
+  "High.Low" = "#be64ac",
+  "High.Medium" = "#8c62aa",
+  "High.High" = "#3b4994"
+)
+
+# Join the data
+map_data <- merge(states_map, state_data, by.x = "region", by.y = "state")
+map_data <- map_data[order(map_data$order), ]
+
+# Create the map
+ggplot(map_data, aes(x = long, y = lat, group = group, fill = bivar)) +
+  geom_polygon(color = "white", size = 0.2) +
+  coord_map() +
+  scale_fill_manual(values = bivar_colors,
+                    name = "Variables",
+                    labels = names(bivar_colors)) +
+  theme_minimal() +
+  labs(title = "Bivariate Map Example",
+       subtitle = "Var1 (purple) vs Var2 (teal)")
+```
+
+## 6. Tools and Libraries for Map Visualization in R
+
+- Base R (`maps` package)
+- ggplot2 with `coord_map()` or `coord_sf()`
+- sf (simple features) package
+- tmap (thematic maps)
+- leaflet (interactive maps)
+- mapview (interactive viewing)
+- cartography (cartographic functions)
+- rayshader (3D mapping)
+
+## Conclusion
+
+Maps are powerful tools for spatial data visualization, but they require careful consideration of many factors to create effective and accurate representations. By understanding the principles outlined in this lecture and avoiding common pitfalls, you can create maps that effectively communicate your spatial data stories.
+
+## References and Resources
+
+- Lovelace, R., Nowosad, J., & Muenchow, J. (2019). *Geocomputation with R*. CRC Press.
+- Wickham, H., Averick, M., Bryan, J., Chang, W., McGowan, L. D., François, R., ... & Yutani, H. (2019). *Welcome to the Tidyverse*. Journal of Open Source Software, 4(43), 1686.
+- Monmonier, M. (2018). *How to lie with maps*. University of Chicago Press.
+- ColorBrewer: https://colorbrewer2.org/
+- R Spatial: https://www.r-spatial.org/

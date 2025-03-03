@@ -1,0 +1,372 @@
+---
+title: "map_project"
+author: "jf"
+date: "3/21/2022"
+output: 
+  html_document:
+    code_folding: "hide"
+---
+
+<style type="text/css">
+  body{
+  font-size: 14pt;
+  }
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning=FALSE, message=FALSE)
+```
+
+## Project
+For this project we will be focusing on former Soviet republics.  We will look specifically at protests that involve women or religious groups in the different regions - Baltics, Central Asia, Eastern Europe, Russia and South Caucasus.  The data we are using is from [The Armed Conflict Location and Event Data Project](https://acleddata.com/#/dashboard) website.  This dataset contains information about locations of different events, including protests, riots and battles.
+
+### Setup
+
+Load packages:
+
+* rnaturalearth
+* rnaturalearthdata
+* tidyverse
+* sf
+* rgeos
+* ggspatial
+* ggrepel
+* janitor
+
+```{r}
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(tidyverse)
+library(sf)
+library(rgeos)
+library(ggspatial)
+library(ggrepel)
+library(janitor)
+```
+
+Load the data.  We will start with the full dataset.
+
+```{r}
+acled <- read.csv("acled 2019-03-05-2022-03-07.csv")
+```
+
+Generate the list of countries and their region that will be used:
+
+```{r}
+country_list <- data.frame(
+  countries=c("Armenia","Azerbaijan","Belarus","Estonia","Georgia",
+              "Kazakhstan","Kyrgyzstan","Latvia","Lithuania","Moldova",
+              "Tajikistan","Turkmenistan","Ukraine","Uzbekistan","Russia"),
+  region=c("South Caucasus","South Caucasus","Eastern Europe","Baltics","South Caucasus",
+           "Central Asia","Central Asia","Baltics","Baltics","Eastern Europe",
+           "Central Asia","Central Asia","Eastern Europe","Central Asia","Russia")
+)
+print(country_list)
+```
+
+Now we will create the dataset for generating maps (using the ne_countries function).
+For this dataset, we will only be using data from 2019, 2020, and 2021.  We will join the mapping data with the ACLED data and create a second data set to use for analysis/labeling.
+
+```{r}
+world <- ne_countries(scale = "medium", returnclass = "sf")
+world <- world %>% filter(name %in% country_list$countries)
+world <- world %>% left_join(country_list,by=c("name"="countries"))
+
+sf::sf_use_s2(FALSE)
+world_points<- st_centroid(world)
+world_points <- cbind(world, st_coordinates(st_centroid(world$geometry)))
+
+world_points_df <- world_points %>%
+  left_join(acled,by=c("name"="country")) %>%
+  st_drop_geometry() %>%
+  filter(year < 2022)
+```
+
+Now that datasets have been created, we create a vector that contains the colors we will use on the maps.  The color palette was generated using the [Color Brewer 2.0](https://colorbrewer2.org/#type=diverging&scheme=RdYlBu&n=5) website.  A data frame is also being created for assigning the colors to the different regions.
+
+```{r}
+my.palette=c('#abd9e9','#fdae61','#ffffbf','#d7191c','#2c7bb6') #colors from colorbrewer2.org)
+my.palette2=world_points %>% select(region) %>%
+  mutate(reg.col=case_when(
+    region=="Baltics" ~ my.palette[1],
+    region=="Central Asia" ~ my.palette[2],
+    region=="Eastern Europe" ~ my.palette[3],
+    region=="Russia" ~ my.palette[4],
+    region=="South Caucasus" ~ my.palette[5]
+  ))
+my.palette2 %>% st_drop_geometry()
+```
+
+Here are the colors selected:
+```{r}
+barplot(1:5,col=my.palette)
+```
+
+## Viz Time
+Now that prep work is done, it's time to create some visualizations.
+
+Since we'll be looking at former Soviet Republics, let's look at a map of these countries
+
+
+```{r,fig.height=8,fig.width=9.5}
+all_rep_plot <- ggplot(world_points)+
+  geom_sf(aes(fill=region))+
+  #geom_text(data=world_points,aes(x=X,y=Y,label=name))+
+  geom_text(aes(x=X,y=Y,label=name))+
+  geom_text(aes(x=50,y=56,label="Russia"))+
+  coord_sf(xlim=c(20,85),ylim=c(35,60,expand=T))+
+  labs(title="Former Soviet Republics")+
+  #scale_fill_viridis(discrete=T,option="H")+
+  #scale_fill_manual(values=c("#02BBFA","#FA1B53","#FAED34","#AD022D","#0A84AD"))+
+  scale_fill_manual(values=my.palette)+ #colors from colorbrewer2.org
+  theme_void()+
+  theme(legend.position = c(.1,.35),
+        plot.title=element_text(hjust=.5,size=24,face="bold"))
+all_rep_plot
+```
+
+Let's look at events by region.
+
+```{r,fig.width=8,fig.height=6}
+world_points_df %>% #filter(region.x=="Central Asia") %>%
+  ggplot(aes(event_type,fill=event_type))+
+  geom_bar(position="dodge")+
+  scale_fill_grey()+
+  facet_wrap(.~region.x)+
+  labs(fill="Event Type",
+       title="Events by Region")+
+  theme_bw()+
+  theme(legend.position = c(.8,.25),
+        axis.text.x=element_blank(),
+        axis.title=element_blank(),
+        plot.title=element_text(hjust=.5,size=24,face="bold")
+        )
+```
+
+Let's recreate the plot highlighting Protests
+
+```{r,fig.width=8,fig.height=6}
+world_points_df %>% #filter(region.x=="Central Asia") %>%
+  ggplot(aes(event_type,fill=event_type))+
+  geom_bar(position="dodge")+
+  scale_fill_manual(values=c("gray10","gray40","green","gray70","gray80","gray90"))+
+  #scale_fill_grey()+
+  facet_wrap(.~region.x)+
+  labs(fill="Event Type",
+       title="Events by Region")+
+  theme_bw()+
+  theme(legend.position = c(.8,.25),
+        axis.text.x=element_blank(),
+        axis.title=element_blank(),
+        plot.title=element_text(hjust=.5,size=24,face="bold")
+  )
+```
+
+We can see that protests are prominent in each region.
+
+Now let's look specifically at protests and religious groups (Catholic, Christian and Muslim) by region.
+
+```{r}
+year_lab_rel <- 
+  world_points_df %>%
+  filter(event_type=="Protests",year < 2022,
+         grepl("Muslim|Catholic|Christian",assoc_actor_1)) %>%
+  group_by(year) %>%
+  summarize(total=sum(table(event_type))) %>%
+  mutate(year_lab=paste0(year,"\n(n = ",total,")"))
+world_points_df %>%
+  mutate(date=as.Date(event_date,"%d %B %Y")) %>%
+  filter(event_type=="Protests", year < 2022,
+         grepl("Muslim|Catholic|Christian",assoc_actor_1)) %>%
+  group_by(region.x,year,name) %>%
+  summarize(total=sum(table(event_type))) %>%
+  ggplot(aes(-year,total,fill=region.x,col=name)) +
+  geom_bar(stat="identity")+
+  scale_color_manual(values=rep("black",14))+
+  scale_fill_manual(values=my.palette)+
+  labs(fill="Region",
+       title="Protests including Religious Groups\n(Muslim, Christian or Catholic)")+
+  #geom_text(aes(x=2019,y=.75,label="Ukraine\nn=530"))+
+  scale_x_continuous(breaks=c(-2019,-2020,-2021),labels=year_lab_rel$year_lab)+
+  theme_minimal()+
+  guides(col="none")+
+  theme(legend.position = "top",
+        plot.title = element_text(size=18,hjust=.5),
+        panel.grid = element_blank(),
+        axis.title=element_blank(),
+        axis.text.y=element_text(size=12,hjust=.5))+
+  coord_flip()
+```
+
+We can see the number of protests decreasing over time (probably due to COVID).  The area with the largest number of protests involving religious groups is Eastern Europe (Ukraine, Belarus and Moldova).  While most saw a decrease or small change, there was a notable increase in protests in the Baltics over the three year period.
+
+Next, let's look at protests and women's groups by region.
+
+```{r}
+year_lab_fem <- 
+  world_points_df %>%
+  filter(event_type=="Protests",year < 2022,
+         grepl("Women",assoc_actor_1)) %>%
+  group_by(year) %>%
+  summarize(total=sum(table(event_type))) %>%
+  mutate(year_lab=paste0(year,"\n(n = ",total,")"))
+
+world_points_df %>%
+  mutate(date=as.Date(event_date,"%d %B %Y")) %>%
+  filter(event_type=="Protests",year < 2022,
+         grepl("Women",assoc_actor_1)) %>%
+  group_by(region.x,year,name) %>%
+  summarize(total=sum(table(event_type))) %>%
+  ggplot(aes(-year,total,fill=region.x,col=name)) +
+  geom_bar(stat="identity")+
+  scale_color_manual(values=rep("black",14))+
+  scale_fill_manual(values=my.palette)+
+  labs(fill="Region",
+       title="Protests including Women")+
+  #geom_text(aes(x=2019,y=.75,label="Kazakhstan\nn=530"))+
+  scale_x_continuous(breaks=c(-2019,-2020,-2021),labels=year_lab_fem$year_lab)+
+  theme_minimal()+
+  guides(col="none")+
+  theme(legend.position = "top",
+        plot.title = element_text(size=18,hjust=.5),
+        panel.grid = element_blank(),
+        axis.title=element_blank(),
+        axis.text.y=element_text(size=12,hjust=.5))+
+  coord_flip()
+```
+
+In 2020 there was a definite increase in the overall number of protests involving women's groups (not sure why) before decreasing again in 2021.  Central Asia and Eastern Europe are where the majority of protests have taken place.
+
+## Where the protests are taking place
+
+Let's create some maps to see if protests are focused in one area or are spread out across regions.
+
+Let's plot the protests on the maps.  First we will need to create a dataset that has the events for Women and Religious Groups.
+
+```{r}
+event_points_fem <- world_points_df %>%
+  filter(event_type=="Protests",
+         grepl("Women",assoc_actor_1)) %>%
+  mutate(group="Women")
+event_points_rel <- world_points_df %>%
+  filter(event_type=="Protests",
+         grepl("Muslim|Catholic|Christian",assoc_actor_1)) %>%
+  mutate(group="Religious")
+event_points <- rbind(event_points_fem,event_points_rel)
+```
+
+Now let's plot the protests on the map:
+
+```{r,fig.height=4.5}
+all_rep_plot +
+  geom_jitter(data=event_points,
+              aes(x=longitude,y=latitude,col=group),size=2,alpha=.4)+
+  scale_color_manual(values=c("green","black"))+
+  labs(col="Group")+
+  guides(fill="none")+
+  coord_sf(xlim=c(20,165))+
+  theme(legend.position = "top",plot.background = element_rect("#F9F9F9"))
+```
+
+A little hard to read.  Let's look at the regional plots.
+
+First, generate maps of the regions:
+
+```{r}
+region_plot <- c("Baltics","Central Asia","Eastern Europe","Russia","South Caucasus")
+region_plot1 <- c("Baltics","Central_Asia","Eastern_Europe","Russia","South_Caucasus")
+
+
+for (i in 1:length(region_plot)) {
+  nam <- paste0(region_plot1[i],"_plot")
+                assign(nam,
+                       world_points %>% 
+                         filter(region==region_plot[i]) %>%
+                         mutate(reg.col=my.palette[i]) %>%
+                         ggplot()+
+                         geom_sf(aes(fill=name))+
+                         geom_text(aes(x=X,y=Y,label=name))+
+                         labs(title=region_plot[i])+
+                         scale_fill_manual(values=my.palette2$reg.col[my.palette2$region==region_plot[i]])+
+                         theme_void()+
+                         theme(legend.position = "none",
+                               plot.title=element_text(hjust=.5,size=24,face="bold"))
+                )
+}
+Russia_plot <- Russia_plot + coord_sf(xlim=c(20,165)) #Cut off eastern most area of Russia
+
+Baltics_plot
+Central_Asia_plot
+Eastern_Europe_plot
+Russia_plot
+South_Caucasus_plot
+```
+
+Now that we have the regions, we can plot the events.
+We'll start with the Baltics:
+
+```{r, fig.height=7}
+Baltics_plot +
+  geom_jitter(data=event_points %>% filter(region.x=="Baltics"),
+             aes(x=longitude,y=latitude,col=group),size=2,alpha=.4)+
+  scale_color_manual(values=c("green","black"))+
+  labs(col="Group")+
+  guides(fill="none")+
+  theme(legend.position = "top",plot.background = element_rect("#F9F9F9"))
+```
+
+Central Asia:
+```{r,fig.height=7}
+Central_Asia_plot +
+  geom_jitter(data=event_points %>% filter(region.x=="Central Asia"),
+              aes(x=longitude,y=latitude,col=group),size=2,alpha=.4)+
+  scale_color_manual(values=c("green","black"))+
+  labs(col="Group")+
+  guides(fill="none")+
+  theme(legend.position = "top",plot.background = element_rect("#F9F9F9"))
+```
+
+Eastern Europe:
+
+```{r,fig.height=7}
+Eastern_Europe_plot +
+  geom_jitter(data=event_points %>% filter(region.x=="Eastern Europe"),
+              aes(x=longitude,y=latitude,col=group),size=2,alpha=.4)+
+  scale_color_manual(values=c("green","black"))+
+  labs(col="Group")+
+  guides(fill="none")+
+  theme(legend.position = "top",plot.background = element_rect("#F9F9F9"))
+```
+
+Russia:
+
+```{r,fig.height=7}
+Russia_plot +
+  geom_jitter(data=event_points %>% filter(region.x=="Russia"),
+              aes(x=longitude,y=latitude,col=group),size=2,alpha=.4)+
+  scale_color_manual(values=c("green","black"))+
+  labs(col="Group")+
+  guides(fill="none")+
+  theme(legend.position = "top",plot.background = element_rect("#F9F9F9"))
+```
+
+South Caucasus
+
+```{r,fig.height=7}
+South_Caucasus_plot +
+  geom_jitter(data=event_points %>% filter(region.x=="South Caucasus"),
+              aes(x=longitude,y=latitude,col=group),size=2,alpha=.4)+
+  scale_color_manual(values=c("green","black"))+
+  labs(col="Group")+
+  guides(fill="none")+
+  theme(legend.position = "top",plot.background = element_rect("#F9F9F9"))
+```
+
+## Conclusions
+conclusions go here
+
+
+
+
+
+
